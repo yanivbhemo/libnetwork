@@ -9,6 +9,7 @@ import (
 	"github.com/docker/libnetwork/netlabel"
 
 	builtinIpam "github.com/docker/libnetwork/ipams/builtin"
+	dhcpIpam "github.com/docker/libnetwork/ipams/dhcp"
 	nullIpam "github.com/docker/libnetwork/ipams/null"
 	remoteIpam "github.com/docker/libnetwork/ipams/remote"
 )
@@ -73,6 +74,7 @@ func makeDriverConfig(c *controller, ntype string) map[string]interface{} {
 func initIpams(ic ipamapi.Callback, lDs, gDs interface{}) error {
 	for _, fn := range [](func(ipamapi.Callback, interface{}, interface{}) error){
 		builtinIpam.Init,
+		dhcpIpam.Init,
 		remoteIpam.Init,
 		nullIpam.Init,
 	} {

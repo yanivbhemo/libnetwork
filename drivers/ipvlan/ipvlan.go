@@ -21,6 +21,9 @@ const (
 	modeOpt             = "_mode"  // ipvlan mode ux opt suffix
 )
 
+// Temporary const for BGP interface this is a demo only
+var temp_bgp_iface = "eth1"
+
 var driverModeOpt = ipvlanType + modeOpt // mode -o ipvlan_mode
 
 type endpointTable map[string]*endpoint
@@ -60,7 +63,7 @@ func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
 		networks: networkTable{},
 	}
 	d.initStore(config)
-
+	go InitBGPMonitoring(temp_bgp_iface)
 	return dc.RegisterDriver(ipvlanType, d, c)
 }
 

@@ -25,10 +25,6 @@ func (d *driver) CreateNetwork(nid string, option map[string]interface{}, ipV4Da
 		return fmt.Errorf("kernel version failed to meet the minimum ipvlan kernel requirement of %d.%d, found %d.%d.%d",
 			ipvlanKernelVer, ipvlanMajorVer, kv.Kernel, kv.Major, kv.Minor)
 	}
-	// reject a null v4 network
-	if len(ipV4Data) == 0 || ipV4Data[0].Pool.String() == "0.0.0.0/0" {
-		return fmt.Errorf("ipv4 pool is empty")
-	}
 	// parse and validate the config and bind to networkConfiguration
 	config, err := parseNetworkOptions(nid, option)
 	if err != nil {
@@ -62,6 +58,17 @@ func (d *driver) CreateNetwork(nid string, option map[string]interface{}, ipV4Da
 	err = d.createNetwork(config)
 	if err != nil {
 		return err
+	}
+
+	for _, route := range config.Ipv4Subnets {
+		netPrefix, err := types.ParseCIDR(route.SubnetIP)
+		if err != nil {
+			return fmt.Errorf("invalid ipv4 prefix: %v", route.SubnetIP)
+		}
+		err = originateBgpRoute(netPrefix)
+		if err != nil {
+			return fmt.Errorf("Error installing container rooute into BGP: %s", err)
+		}
 	}
 	// update persistent db, rollback on fail
 	err = d.storeUpdate(config)
@@ -145,6 +152,17 @@ func (d *driver) DeleteNetwork(nid string) error {
 						n.config.Parent, err)
 				}
 			}
+		}
+	}
+	// eject the bgp routes
+	for _, route := range n.config.Ipv4Subnets {
+		netPrefix, err := types.ParseCIDR(route.SubnetIP)
+		if err != nil {
+			return fmt.Errorf("invalid ipv4 prefix: %v", route.SubnetIP)
+		}
+		err = deleteOriginRoute(netPrefix.String())
+		if err != nil {
+			return fmt.Errorf("Error installing container rooute into BGP: %s", err)
 		}
 	}
 	// delete the *network

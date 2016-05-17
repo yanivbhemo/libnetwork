@@ -400,9 +400,9 @@ func (ds *datastore) PutObjectAtomic(kvObject KVObject) error {
 
 	_, pair, err = ds.store.AtomicPut(Key(kvObject.Key()...), kvObjValue, previous, nil)
 	if err != nil {
-		if err == store.ErrKeyExists {
-			return ErrKeyModified
-		}
+		//if err == store.ErrKeyExists {
+		//	return ErrKeyModified
+		//}
 		return err
 	}
 
@@ -563,9 +563,9 @@ func (ds *datastore) DeleteObjectAtomic(kvObject KVObject) error {
 	}
 
 	if _, err := ds.store.AtomicDelete(Key(kvObject.Key()...), previous); err != nil {
-		if err == store.ErrKeyExists {
-			return ErrKeyModified
-		}
+		//if err == store.ErrKeyExists {
+		//	return ErrKeyModified
+		//}
 		return err
 	}
 

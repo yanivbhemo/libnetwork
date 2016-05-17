@@ -210,7 +210,7 @@ func (nDB *NetworkDB) gossip() {
 		}
 
 		// Create a compound message
-		compound := makeCompoundMessage(msgs)
+		//compound := makeCompoundMessage(msgs)
 
 		for _, node := range mNodes {
 			nDB.RLock()
@@ -222,9 +222,9 @@ func (nDB *NetworkDB) gossip() {
 			}
 
 			// Send the compound message
-			if err := nDB.memberlist.SendToUDP(mnode, compound.Bytes()); err != nil {
-				logrus.Errorf("Failed to send gossip to %s: %s", mnode.Addr, err)
-			}
+			//if err := nDB.memberlist.SendToUDP(mnode, compound.Bytes()); err != nil {
+			//	logrus.Errorf("Failed to send gossip to %s: %s", mnode.Addr, err)
+			//}
 		}
 	}
 }
@@ -354,34 +354,34 @@ func (nDB *NetworkDB) bulkSyncNode(networks []string, node string, unsolicited b
 	nDB.RUnlock()
 
 	// Create a compound message
-	compound := makeCompoundMessage(msgs)
+	//compound := makeCompoundMessage(msgs)
 
-	bsm := bulkSyncMessage{
-		LTime:       nDB.tableClock.Time(),
-		Unsolicited: unsolicited,
-		NodeName:    nDB.config.NodeName,
-		Networks:    networks,
-		Payload:     compound.Bytes(),
-	}
+	//bsm := bulkSyncMessage{
+	//	LTime:       nDB.tableClock.Time(),
+	//	Unsolicited: unsolicited,
+	//	NodeName:    nDB.config.NodeName,
+	//	Networks:    networks,
+	//	Payload:     compound.Bytes(),
+	//}
 
-	buf, err := encodeMessage(bulkSyncMsg, &bsm)
-	if err != nil {
-		return fmt.Errorf("failed to encode bulk sync message: %v", err)
-	}
+	//buf, err := encodeMessage(bulkSyncMsg, &bsm)
+	//if err != nil {
+	//	return fmt.Errorf("failed to encode bulk sync message: %v", err)
+	//}
 
 	nDB.Lock()
 	ch := make(chan struct{})
 	nDB.bulkSyncAckTbl[node] = ch
 	nDB.Unlock()
 
-	err = nDB.memberlist.SendToTCP(mnode, buf)
-	if err != nil {
-		nDB.Lock()
-		delete(nDB.bulkSyncAckTbl, node)
-		nDB.Unlock()
-
-		return fmt.Errorf("failed to send a TCP message during bulk sync: %v", err)
-	}
+	//err = nDB.memberlist.SendToTCP(mnode, buf)
+	//if err != nil {
+	//	nDB.Lock()
+	//	delete(nDB.bulkSyncAckTbl, node)
+	//	nDB.Unlock()
+	//
+	//	return fmt.Errorf("failed to send a TCP message during bulk sync: %v", err)
+	//}
 
 	startTime := time.Now()
 	select {

@@ -13,32 +13,8 @@ import (
 
 const macvlanPrefix = "macvlan" // prefix used for persistent driver storage
 
-// networkConfiguration for this driver's network specific configuration
-type configuration struct {
-	ID               string
-	Mtu              int
-	dbIndex          uint64
-	dbExists         bool
-	Internal         bool
-	Parent           string
-	MacvlanMode      string
-	CreatedSlaveLink bool
-	Ipv4Subnets      []*ipv4Subnet
-	Ipv6Subnets      []*ipv6Subnet
-}
-
-type ipv4Subnet struct {
-	SubnetIP string
-	GwIP     string
-}
-
-type ipv6Subnet struct {
-	SubnetIP string
-	GwIP     string
-}
-
 // initStore drivers are responsible for caching their own persistent state
-func (d *driver) initStore(option map[string]interface{}) error {
+func (d *driver) runStore(option map[string]interface{}) error {
 	if data, ok := option[netlabel.LocalKVClient]; ok {
 		var err error
 		dsc, ok := data.(discoverapi.DatastoreConfigData)

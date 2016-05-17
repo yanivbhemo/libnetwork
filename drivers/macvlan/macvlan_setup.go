@@ -206,3 +206,35 @@ func delDummyLink(linkName string) error {
 func getDummyName(netID string) string {
 	return fmt.Sprintf("%s%s", dummyPrefix, netID)
 }
+
+// createVlanLink parses sub-interfaces and vlan id for creation
+func getParent(parentNames []string) (string, error) {
+	// Lookup a matching valid parent interface
+	logrus.Debugf("Temporary Verbose Logs")
+	for _, parentName := range parentNames {
+		logrus.Debugf("Checking interface for usability ------> %s", parentName)
+		// if the parent exists, return a match
+		if parentExists(parentName) {
+			logrus.Debugf("Parent Exists and IS usable ------> %s", parentName)
+			return parentName, nil
+		}
+		// if the parent name matches <valid_interface>.<valid_vlan_id> then match (ex. eth0.10)
+		if strings.Contains(parentName, ".") {
+			logrus.Debugf("Checking interface with a '.' subinterface ------> %s", parentName)
+			parent, vidInt, err := parseVlan(parentName)
+			if err == nil {
+				// VLAN identifier or VID is a 12-bit field specifying the VLAN to which the frame belongs
+				if vidInt < 4094 || vidInt > 1 {
+					if parentExists(parent) {
+						logrus.Debugf("Parent %s Exists and subinterface IS usable ------> %s", parent, parentName)
+						return parentName, nil
+					}
+					logrus.Debugf("Parent does Not exist ------> %s", parentName)
+				}
+			}
+		}
+		logrus.Debugf("Parent is Not usable ------> %s", parentName)
+	}
+
+	return "", fmt.Errorf("No matching parent interface could be found for the host using: %v", parentNames)
+}

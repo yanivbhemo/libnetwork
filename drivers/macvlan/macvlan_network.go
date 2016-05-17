@@ -2,16 +2,43 @@ package macvlan
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/parsers/kernel"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
 )
+
+// networkConfiguration for this driver's network specific configuration
+type configuration struct {
+	ID               string
+	Mtu              int
+	dbIndex          uint64
+	dbExists         bool
+	Internal         bool
+	Parent           string
+	ParentList       []string
+	MacvlanMode      string
+	CreatedSlaveLink bool
+	Ipv4Subnets      []*ipv4Subnet
+	Ipv6Subnets      []*ipv6Subnet
+}
+
+type ipv4Subnet struct {
+	SubnetIP string
+	GwIP     string
+}
+
+type ipv6Subnet struct {
+	SubnetIP string
+	GwIP     string
+}
 
 // CreateNetwork the network for the specified driver type
 func (d *driver) CreateNetwork(nid string, option map[string]interface{}, nInfo driverapi.NetworkInfo, ipV4Data, ipV6Data []driverapi.IPAMData) error {
@@ -53,7 +80,17 @@ func (d *driver) CreateNetwork(nid string, option map[string]interface{}, nInfo 
 	default:
 		return fmt.Errorf("requested macvlan mode '%s' is not valid, 'bridge' mode is the macvlan driver default", config.MacvlanMode)
 	}
-	// loopback is not a valid parent link
+	// reject a network with an empty parent
+	if len(config.ParentList) == 0 {
+		return fmt.Errorf("no parent interface was passed, use for example '-o parent=\"eth0,eth1,eth3\"")
+	}
+	if len(config.ParentList) > 0 {
+		config.Parent, err = getParent(config.ParentList)
+		if err != nil {
+			return err
+		}
+	}
+	// loopback is not a valid parent link, checked in []parentList parsing, may be redundant
 	if config.Parent == "lo" {
 		return fmt.Errorf("loopback interface is not a valid %s parent link", macvlanType)
 	}
@@ -67,14 +104,15 @@ func (d *driver) CreateNetwork(nid string, option map[string]interface{}, nInfo 
 	if err != nil {
 		return err
 	}
-	// update persistent db, rollback on fail
-	err = d.storeUpdate(config)
-	if err != nil {
-		d.deleteNetwork(config.ID)
-		logrus.Debugf("encoutered an error rolling back a network create for %s : %v", config.ID, err)
-		return err
+	// locally scoped persistent db, rollback on fail.
+	if d.scope == localScope {
+		err = d.storeUpdate(config)
+		if err != nil {
+			d.deleteNetwork(config.ID)
+			logrus.Debugf("encoutered an error rolling back a network create for %s : %v", config.ID, err)
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -95,7 +133,7 @@ func (d *driver) createNetwork(config *configuration) error {
 				return err
 			}
 			config.CreatedSlaveLink = true
-			// notify the user in logs they have limited comunicatins
+			// notify the user in logs they have limited communications
 			if config.Parent == getDummyName(stringid.TruncateID(config.ID)) {
 				logrus.Debugf("Empty -o parent= and --internal flags limit communications to other containers inside of network: %s",
 					config.Parent)
@@ -117,7 +155,14 @@ func (d *driver) createNetwork(config *configuration) error {
 		endpoints: endpointTable{},
 		config:    config,
 	}
-	// add the *network
+	if d.scope == globalScope {
+		if n.driver.store != nil {
+			if err := n.writeToStore(); err != nil {
+				return fmt.Errorf("failed to update data store for network %v: %v", n.id, err)
+			}
+		}
+	}
+	// add the network
 	d.addNetwork(n)
 
 	return nil
@@ -153,11 +198,26 @@ func (d *driver) DeleteNetwork(nid string) error {
 	}
 	// delete the *network
 	d.deleteNetwork(nid)
-	// delete the network record from persistent cache
-	err := d.storeDelete(n.config)
-	if err != nil {
-		return fmt.Errorf("error deleting deleting id %s from datastore: %v", nid, err)
+	// if global, delete the network record from global datastore
+	if d.scope == globalScope {
+		if n.driver.store != nil {
+			// delete the network record from the global datastore
+			if err := n.driver.store.DeleteObjectAtomic(n); err != nil {
+				if err == datastore.ErrKeyModified || err == datastore.ErrKeyNotFound {
+					return nil
+				}
+				return fmt.Errorf("failed to delete network: %v", err)
+			}
+		}
 	}
+	// if local, delete the network record from persistent cache
+	if d.scope == localScope {
+		err := d.storeDelete(n.config)
+		if err != nil {
+			return fmt.Errorf("error deleting deleting id %s from datastore: %v", nid, err)
+		}
+	}
+
 	return nil
 }
 
@@ -211,12 +271,26 @@ func parseNetworkGenericOptions(data interface{}) (*configuration, error) {
 func (config *configuration) fromOptions(labels map[string]string) error {
 	for label, value := range labels {
 		switch label {
-		case parentOpt:
-			// parse driver option '-o parent'
-			config.Parent = value
 		case driverModeOpt:
 			// parse driver option '-o macvlan_mode'
 			config.MacvlanMode = value
+		case parentOpt:
+			// parse driver option '-o parent'
+			if strings.Contains(value, ",") {
+				pl := strings.Split(value, ",")
+				// strip all whitespaces and ignore loopbacks and empty values
+				for _, p := range pl {
+					sp := stripSpace(p)
+					if sp != "" && sp != "lo" {
+						config.ParentList = append(config.ParentList, sp)
+					}
+				}
+			} else {
+				sp := stripSpace(value)
+				if sp != "" && sp != "lo" {
+					config.ParentList = append(config.ParentList, sp)
+				}
+			}
 		}
 	}
 
@@ -245,4 +319,9 @@ func (config *configuration) processIPAM(id string, ipamV4Data, ipamV6Data []dri
 	}
 
 	return nil
+}
+
+// stripSpace removes any whitespaces; leading, trailing or nil valued
+func stripSpace(str string) string {
+	return strings.Join(strings.Fields(str), "")
 }

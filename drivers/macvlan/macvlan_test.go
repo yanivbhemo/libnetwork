@@ -42,7 +42,7 @@ func TestMacvlanNilConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := dt.d.initStore(nil); err != nil {
+	if err := dt.d.runStore(nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -20,8 +20,8 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	if err := validateID(nid, eid); err != nil {
 		return err
 	}
-	n, err := d.getNetwork(nid)
-	if err != nil {
+	n := d.networkStore(nid)
+	if n == nil {
 		return fmt.Errorf("network id %q not found", nid)
 	}
 	ep := &endpoint{

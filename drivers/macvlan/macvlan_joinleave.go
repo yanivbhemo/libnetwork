@@ -13,9 +13,9 @@ import (
 // Join method is invoked when a Sandbox is attached to an endpoint.
 func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo, options map[string]interface{}) error {
 	defer osl.InitOSContext()()
-	n, err := d.getNetwork(nid)
-	if err != nil {
-		return err
+	n := d.networkStore(nid)
+	if n == nil {
+		return fmt.Errorf("could not find network with id %s", nid)
 	}
 	endpoint := n.endpoint(eid)
 	if endpoint == nil {

@@ -10,6 +10,14 @@
 			"Rev": "70b2c90b260171e829f1ebd7c17f600c11858dbe"
 		},
 		{
+			"ImportPath": "github.com/Microsoft/hcsshim",
+			"Rev": "116e0e9f5ced0cec94ae46d0aa1b3002a325f532"
+		},
+		{
+			"ImportPath": "github.com/Microsoft/go-winio",
+			"Rev": "8f9387ea7efabb228a981b9c381142be7667967f"
+		},
+		{
 			"ImportPath": "github.com/BurntSushi/toml",
 			"Comment": "v0.1.0-16-gf706d00",
 			"Rev": "f706d00e3de6abe700c994cdd545a1a4915af060"
@@ -243,7 +251,7 @@
 		},
 		{
 			"ImportPath": "github.com/vishvananda/netlink",
-			"Rev": "bfd70f556483c008636b920dda142fdaa0d59ef9"
+			"Rev": "631962935bff4f3d20ff32a72e8944f6d2836a26"
 		},
 		{
 			"ImportPath": "github.com/vishvananda/netns",

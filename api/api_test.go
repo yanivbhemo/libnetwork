@@ -108,17 +108,17 @@ func createTestNetwork(t *testing.T, network string) (libnetwork.NetworkControll
 
 func getExposedPorts() []types.TransportPort {
 	return []types.TransportPort{
-		types.TransportPort{Proto: types.TCP, Port: uint16(5000)},
-		types.TransportPort{Proto: types.UDP, Port: uint16(400)},
-		types.TransportPort{Proto: types.TCP, Port: uint16(600)},
+		{Proto: types.TCP, Port: uint16(5000)},
+		{Proto: types.UDP, Port: uint16(400)},
+		{Proto: types.TCP, Port: uint16(600)},
 	}
 }
 
 func getPortMapping() []types.PortBinding {
 	return []types.PortBinding{
-		types.PortBinding{Proto: types.TCP, Port: uint16(230), HostPort: uint16(23000)},
-		types.PortBinding{Proto: types.UDP, Port: uint16(200), HostPort: uint16(22000)},
-		types.PortBinding{Proto: types.TCP, Port: uint16(120), HostPort: uint16(12000)},
+		{Proto: types.TCP, Port: uint16(230), HostPort: uint16(23000)},
+		{Proto: types.UDP, Port: uint16(200), HostPort: uint16(22000)},
+		{Proto: types.TCP, Port: uint16(120), HostPort: uint16(12000)},
 	}
 }
 
@@ -135,7 +135,7 @@ func TestSandboxOptionParser(t *testing.T) {
 	hp := "/etc/hosts"
 	rc := "/etc/resolv.conf"
 	dnss := []string{"8.8.8.8", "172.28.34.5"}
-	ehs := []extraHost{extraHost{Name: "extra1", Address: "172.28.9.1"}, extraHost{Name: "extra2", Address: "172.28.9.2"}}
+	ehs := []extraHost{{Name: "extra1", Address: "172.28.9.1"}, {Name: "extra2", Address: "172.28.9.2"}}
 
 	sb := sandboxCreate{
 		HostName:          hn,
@@ -293,9 +293,7 @@ func TestGetNetworksAndEndpoints(t *testing.T) {
 	}
 
 	ec1 := endpointCreate{
-		Name:         "ep1",
-		ExposedPorts: getExposedPorts(),
-		PortMapping:  getPortMapping(),
+		Name: "ep1",
 	}
 	b1, err := json.Marshal(ec1)
 	if err != nil {
@@ -709,7 +707,7 @@ func TestProcGetService(t *testing.T) {
 	vars := map[string]string{urlEpID: ""}
 	_, errRsp := procGetService(c, vars, nil)
 	if errRsp.isOK() {
-		t.Fatalf("Expected failure, but suceeded")
+		t.Fatalf("Expected failure, but succeeded")
 	}
 	if errRsp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected %d, but got: %d", http.StatusBadRequest, errRsp.StatusCode)
@@ -718,7 +716,7 @@ func TestProcGetService(t *testing.T) {
 	vars[urlEpID] = "unknown-service-id"
 	_, errRsp = procGetService(c, vars, nil)
 	if errRsp.isOK() {
-		t.Fatalf("Expected failure, but suceeded")
+		t.Fatalf("Expected failure, but succeeded")
 	}
 	if errRsp.StatusCode != http.StatusNotFound {
 		t.Fatalf("Expected %d, but got: %d. (%v)", http.StatusNotFound, errRsp.StatusCode, errRsp)
@@ -823,10 +821,8 @@ func TestProcPublishUnpublishService(t *testing.T) {
 	}
 
 	sp := servicePublish{
-		Name:         "web",
-		Network:      "network",
-		ExposedPorts: getExposedPorts(),
-		PortMapping:  getPortMapping(),
+		Name:    "web",
+		Network: "network",
 	}
 	b, err = json.Marshal(sp)
 	if err != nil {
@@ -864,7 +860,7 @@ func TestProcPublishUnpublishService(t *testing.T) {
 
 	_, errRsp = procGetService(c, vars, nil)
 	if errRsp.isOK() {
-		t.Fatalf("Expected failure, but suceeded")
+		t.Fatalf("Expected failure, but succeeded")
 	}
 	if errRsp.StatusCode != http.StatusNotFound {
 		t.Fatalf("Expected %d, but got: %d. (%v)", http.StatusNotFound, errRsp.StatusCode, errRsp)
@@ -1545,7 +1541,7 @@ func checkPanic(t *testing.T) {
 			panic(r)
 		}
 	} else {
-		t.Fatalf("Expected to panic, but suceeded")
+		t.Fatalf("Expected to panic, but succeeded")
 	}
 }
 
@@ -2087,7 +2083,10 @@ func TestEndToEnd(t *testing.T) {
 	cpid1 := string(chars[0 : len(chars)/2])
 
 	// Create sandboxes
-	sb1, err := json.Marshal(sandboxCreate{ContainerID: cid1})
+	sb1, err := json.Marshal(sandboxCreate{
+		ContainerID: cid1,
+		PortMapping: getPortMapping(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2111,7 +2110,10 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb2, err := json.Marshal(sandboxCreate{ContainerID: cid2})
+	sb2, err := json.Marshal(sandboxCreate{
+		ContainerID:  cid2,
+		ExposedPorts: getExposedPorts(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

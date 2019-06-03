@@ -3,11 +3,15 @@ package libnetwork
 import (
 	"strings"
 
+	"github.com/docker/libnetwork/discoverapi"
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/ipamapi"
-	builtinIpam "github.com/docker/libnetwork/ipams/builtin"
-	remoteIpam "github.com/docker/libnetwork/ipams/remote"
 	"github.com/docker/libnetwork/netlabel"
+
+	builtinIpam "github.com/docker/libnetwork/ipams/builtin"
+	dhcpIpam "github.com/docker/libnetwork/ipams/dhcp"
+	nullIpam "github.com/docker/libnetwork/ipams/null"
+	remoteIpam "github.com/docker/libnetwork/ipams/remote"
 )
 
 type initializer struct {
@@ -56,10 +60,12 @@ func makeDriverConfig(c *controller, ntype string) map[string]interface{} {
 		if !v.IsValid() {
 			continue
 		}
-
-		config[netlabel.MakeKVProvider(k)] = v.Client.Provider
-		config[netlabel.MakeKVProviderURL(k)] = v.Client.Address
-		config[netlabel.MakeKVProviderConfig(k)] = v.Client.Config
+		config[netlabel.MakeKVClient(k)] = discoverapi.DatastoreConfigData{
+			Scope:    k,
+			Provider: v.Client.Provider,
+			Address:  v.Client.Address,
+			Config:   v.Client.Config,
+		}
 	}
 
 	return config
@@ -68,7 +74,9 @@ func makeDriverConfig(c *controller, ntype string) map[string]interface{} {
 func initIpams(ic ipamapi.Callback, lDs, gDs interface{}) error {
 	for _, fn := range [](func(ipamapi.Callback, interface{}, interface{}) error){
 		builtinIpam.Init,
+		dhcpIpam.Init,
 		remoteIpam.Init,
+		nullIpam.Init,
 	} {
 		if err := fn(ic, lDs, gDs); err != nil {
 			return err

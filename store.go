@@ -14,6 +14,7 @@ func (c *controller) initStores() error {
 		return nil
 	}
 	scopeConfigs := c.cfg.Scopes
+	c.stores = nil
 	c.Unlock()
 
 	for scope, scfg := range scopeConfigs {
@@ -70,7 +71,7 @@ func (c *controller) getNetworkFromStore(nid string) (*network, error) {
 
 		ec := &endpointCnt{n: n}
 		err = store.GetObject(datastore.Key(ec.Key()...), ec)
-		if err != nil {
+		if err != nil && !n.inDelete {
 			return nil, fmt.Errorf("could not find endpoint count for network %s: %v", n.Name(), err)
 		}
 
@@ -103,7 +104,7 @@ func (c *controller) getNetworksForScope(scope string) ([]*network, error) {
 
 		ec := &endpointCnt{n: n}
 		err = store.GetObject(datastore.Key(ec.Key()...), ec)
-		if err != nil {
+		if err != nil && !n.inDelete {
 			log.Warnf("Could not find endpoint count key %s for network %s while listing: %v", datastore.Key(ec.Key()...), n.Name(), err)
 			continue
 		}
@@ -138,7 +139,7 @@ func (c *controller) getNetworksFromStore() ([]*network, error) {
 
 			ec := &endpointCnt{n: n}
 			err = store.GetObject(datastore.Key(ec.Key()...), ec)
-			if err != nil {
+			if err != nil && !n.inDelete {
 				log.Warnf("could not find endpoint count key %s for network %s while listing: %v", datastore.Key(ec.Key()...), n.Name(), err)
 				continue
 			}
@@ -418,9 +419,29 @@ func (c *controller) watchLoop() {
 }
 
 func (c *controller) startWatch() {
+	if c.watchCh != nil {
+		return
+	}
 	c.watchCh = make(chan *endpoint)
 	c.unWatchCh = make(chan *endpoint)
 	c.nmap = make(map[string]*netWatch)
 
 	go c.watchLoop()
+}
+
+func (c *controller) networkCleanup() {
+	networks, err := c.getNetworksFromStore()
+	if err != nil {
+		log.Warnf("Could not retrieve networks from store(s) during network cleanup: %v", err)
+		return
+	}
+
+	for _, n := range networks {
+		if n.inDelete {
+			log.Infof("Removing stale network %s (%s)", n.Name(), n.ID())
+			if err := n.delete(true); err != nil {
+				log.Debugf("Error while removing stale network: %v", err)
+			}
+		}
+	}
 }

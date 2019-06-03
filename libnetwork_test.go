@@ -252,15 +252,6 @@ func TestHost(t *testing.T) {
 	if err := ep3.Delete(false); err != nil {
 		t.Fatal(err)
 	}
-
-	// host type is special network. Cannot be removed.
-	err = network.Delete()
-	if err == nil {
-		t.Fatal(err)
-	}
-	if _, ok := err.(types.ForbiddenError); !ok {
-		t.Fatalf("Unexpected error type")
-	}
 }
 
 func TestBridge(t *testing.T) {
@@ -276,15 +267,35 @@ func TestBridge(t *testing.T) {
 			"EnableIPMasquerade": true,
 		},
 	}
-	ipamV4ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "192.168.100.0/24", Gateway: "192.168.100.1"}}
-	ipamV6ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
+	ipamV4ConfList := []*libnetwork.IpamConf{{PreferredPool: "192.168.100.0/24", Gateway: "192.168.100.1"}}
+	ipamV6ConfList := []*libnetwork.IpamConf{{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
 
 	network, err := createTestNetwork(bridgeNetType, "testnetwork", netOption, ipamV4ConfList, ipamV6ConfList)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := network.Delete(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
-	ep, err := network.CreateEndpoint("testep", libnetwork.CreateOptionPortMapping(getPortMapping()))
+	ep, err := network.CreateEndpoint("testep")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sb, err := controller.NewSandbox(containerID, libnetwork.OptionPortMapping(getPortMapping()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := sb.Delete(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	err = ep.Join(sb)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,14 +315,6 @@ func TestBridge(t *testing.T) {
 	if len(pm) != 5 {
 		t.Fatalf("Incomplete data for port mapping in endpoint operational data: %d", len(pm))
 	}
-
-	if err := ep.Delete(false); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := network.Delete(); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // Testing IPV6 from MAC address
@@ -327,8 +330,8 @@ func TestBridgeIpv6FromMac(t *testing.T) {
 			"EnableIPMasquerade": true,
 		},
 	}
-	ipamV4ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "192.168.100.0/24", Gateway: "192.168.100.1"}}
-	ipamV6ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
+	ipamV4ConfList := []*libnetwork.IpamConf{{PreferredPool: "192.168.100.0/24", Gateway: "192.168.100.1"}}
+	ipamV6ConfList := []*libnetwork.IpamConf{{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
 
 	network, err := controller.NewNetwork(bridgeNetType, "testipv6mac",
 		libnetwork.NetworkOptionGeneric(netOption),
@@ -566,7 +569,7 @@ func TestUnknownEndpoint(t *testing.T) {
 	option := options.Generic{
 		netlabel.GenericData: netOption,
 	}
-	ipamV4ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "192.168.100.0/24"}}
+	ipamV4ConfList := []*libnetwork.IpamConf{{PreferredPool: "192.168.100.0/24"}}
 
 	network, err := createTestNetwork(bridgeNetType, "testnetwork", option, ipamV4ConfList, nil)
 	if err != nil {
@@ -1012,7 +1015,7 @@ func TestEndpointJoin(t *testing.T) {
 			"EnableIPMasquerade": true,
 		},
 	}
-	ipamV6ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
+	ipamV6ConfList := []*libnetwork.IpamConf{{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
 	n1, err := controller.NewNetwork(bridgeNetType, "testnetwork1",
 		libnetwork.NetworkOptionGeneric(netOption),
 		libnetwork.NetworkOptionEnableIPv6(true),
@@ -1213,8 +1216,8 @@ func (f *fakeSandbox) SetKey(key string) error {
 	return nil
 }
 
-func (f *fakeSandbox) ResolveName(name string) net.IP {
-	return nil
+func (f *fakeSandbox) ResolveName(name string, ipType int) ([]net.IP, bool) {
+	return nil, false
 }
 
 func (f *fakeSandbox) ResolveIP(ip string) string {
@@ -1227,10 +1230,6 @@ func (f *fakeSandbox) Endpoints() []libnetwork.Endpoint {
 
 func TestExternalKey(t *testing.T) {
 	externalKeyTest(t, false)
-}
-
-func TestExternalKeyWithReexec(t *testing.T) {
-	externalKeyTest(t, true)
 }
 
 func externalKeyTest(t *testing.T, reexec bool) {
@@ -1729,7 +1728,7 @@ func TestEnableIPv6(t *testing.T) {
 			"BridgeName": "testnetwork",
 		},
 	}
-	ipamV6ConfList := []*libnetwork.IpamConf{&libnetwork.IpamConf{PreferredPool: "fe99::/64", Gateway: "fe99::9"}}
+	ipamV6ConfList := []*libnetwork.IpamConf{{PreferredPool: "fe99::/64", Gateway: "fe99::9"}}
 
 	n, err := createTestNetwork("bridge", "testnetwork", netOption, nil, ipamV6ConfList)
 	if err != nil {
@@ -2355,4 +2354,11 @@ func TestParallel2(t *testing.T) {
 
 func TestParallel3(t *testing.T) {
 	runParallelTests(t, 3)
+}
+
+func TestNullIpam(t *testing.T) {
+	_, err := controller.NewNetwork(bridgeNetType, "testnetworkinternal", libnetwork.NetworkOptionIpam(ipamapi.NullIPAM, "", nil, nil, nil))
+	if err == nil || err.Error() != "ipv4 pool is empty" {
+		t.Fatal("bridge network should complain empty pool")
+	}
 }
